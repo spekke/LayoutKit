@@ -104,16 +104,32 @@ open class TextViewLayout<TextView: UITextView>: BaseLayout<TextView>, Configura
     // MARK: - private helpers
 
     private func textSize(within maxSize: CGSize) -> CGSize {
+
+        let defaultFont = font ?? TextViewLayout.defaultFont(withText: text)
         var insetMaxSize = maxSize.decreased(by: textContainerInset)
-        insetMaxSize.width -= lineFragmentPadding * 2
 
-        let size = isTextEmpty
-            ? text.textSizeWithEmptyText(within: insetMaxSize, font: font ?? TextViewLayout.defaultFont(withText: text))
-            : text.textSize(within: insetMaxSize, font: font ?? TextViewLayout.defaultFont(withText: text))
+        let textSize: CGSize
 
-        var textSize = size.increased(by: textContainerInset)
-        textSize.width += lineFragmentPadding * 2
-        return textSize
+        if isTextEmpty {
+            insetMaxSize.width -= lineFragmentPadding * 2
+            textSize = text.textSizeWithEmptyText(within: insetMaxSize, font: defaultFont)
+        }
+        else {
+            switch text {
+            case .attributed(let attributedText):
+                textSize = self.boundingBox(forAttributedString: attributedText, within: insetMaxSize, font: defaultFont)
+            case .unattributed(let text):
+                let attributedText = NSAttributedString(string: text)
+                textSize = self.boundingBox(forAttributedString: attributedText, within: insetMaxSize, font: defaultFont)
+            }
+        }
+
+        var size = textSize.increased(by: textContainerInset)
+        if isTextEmpty {
+            size.width += lineFragmentPadding * 2
+        }
+
+        return size
     }
 
     private static func defaultFont(withText text: Text) -> UIFont {
@@ -125,6 +141,37 @@ open class TextViewLayout<TextView: UITextView>: BaseLayout<TextView>, Configura
                 ? TextViewDefaultFont.attributedTextFontWithEmptyString
                 : TextViewDefaultFont.attributedTextFont
         }
+    }
+
+
+    private func boundingBox(forAttributedString attributedString: NSAttributedString, within maxSize: CGSize, font: UIFont) -> CGSize {
+
+        // UILabel/UITextView uses a default font if one is not specified in the attributed string.
+        // boundingRect(with:options:attributes:) does not appear to have the same logic,
+        // so we need to ensure that our attributed string has a default font.
+        // We do this by creating a new attributed string with the default font and then
+        // applying all of the attributes from the provided attributed string.
+        let fontAppliedAttributeString = attributedString.with(font: font)
+
+        let layoutManager = NSLayoutManager()
+        layoutManager.usesFontLeading = false
+
+        let textContainer = NSTextContainer(size: CGSize(width: maxSize.width, height: CGFloat.greatestFiniteMagnitude))
+        textContainer.lineFragmentPadding = lineFragmentPadding
+        textContainer.maximumNumberOfLines = 0
+        textContainer.lineBreakMode = .byWordWrapping
+
+        layoutManager.addTextContainer(textContainer)
+
+        let textStorage = NSTextStorage(attributedString: fontAppliedAttributeString)
+        textStorage.addLayoutManager(layoutManager)
+
+        layoutManager.ensureLayout(for: textContainer)
+        let rect = layoutManager.usedRect(for: textContainer)
+
+        textStorage.removeLayoutManager(layoutManager)
+
+        return CGSize(width: rect.width.roundedUpToFractionalPoint, height: rect.height.roundedUpToFractionalPoint)
     }
 
     // MARK: - overriden methods

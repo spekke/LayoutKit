@@ -151,6 +151,35 @@ class TextViewLayoutTests: XCTestCase {
         XCTAssertTrue(layoutArrangement.frame.size.height <= 20, "Width should be less than the max height")
     }
 
+    func testAttributedStringInSpecificWidthWithFontFromFontDescriptor() {
+        let fontDescriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
+        let font = UIFont(descriptor: fontDescriptor, size: fontDescriptor.pointSize)
+
+        let attributedString = NSAttributedString(string: "Hello world! Testing TextViewLayout in LayoutKit.")
+        let text = Text.attributed(attributedString)
+
+        let textView = UITextView(text: text, font: font)
+
+        let layout = TextViewLayout(text: text, font: font)
+        let layoutArrangement = layout.arrangement(width: 320)
+
+        XCTAssertEqual(layoutArrangement.frame.size, textView.systemLayoutSizeFitting(CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude)))
+    }
+
+    func testUnattributedStringInSpecificWidthWithFontFromFontDescriptor() {
+        let fontDescriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
+        let font = UIFont(descriptor: fontDescriptor, size: fontDescriptor.pointSize)
+
+        let text = Text.unattributed("Hello world! Testing TextViewLayout in LayoutKit.")
+
+        let textView = UITextView(text: text, font: font)
+
+        let layout = TextViewLayout(text: text, font: font)
+        let layoutArrangement = layout.arrangement(width: 320)
+
+        XCTAssertEqual(layoutArrangement.frame.size, textView.systemLayoutSizeFitting(CGSize(width: 320, height: CGFloat.greatestFiniteMagnitude)))
+    }
+
 }
 
 // MARK: - private helper extension

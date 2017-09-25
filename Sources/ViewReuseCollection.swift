@@ -46,32 +46,11 @@ struct ViewReuseCollection {
     }
 
     func allViews() -> AnyCollection<View> {
-        let viewsCollection = self.views.values.lazy.flatMap { return $0 }
-        return AnyCollection(viewsCollection)
+        return AnyCollection<View>(self.views.values.joined())
+
     }
 
     mutating func removeAll() {
         views.removeAll()
     }
 }
-
-extension ViewReuseCollection: Collection {
-
-    typealias Index = DictionaryType.Index
-    typealias Element = DictionaryType.Element
-
-    var startIndex: Index { return self.views.startIndex }
-    var endIndex: Index { return self.views.endIndex }
-
-    subscript(index: Index) -> Iterator.Element {
-        get {
-            return self.views[index]
-
-        }
-    }
-
-    func index(after i: Index) -> Index {
-        return self.views.index(after: i)
-    }
-}
-

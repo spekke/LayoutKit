@@ -17,14 +17,14 @@ import ObjectiveC
  */
 class ViewRecycler {
 
-    private var viewsById = [String: View]()
+    private var viewsById = ViewReuseCollection()
     private var unidentifiedViews = Set<View>()
 
     /// Retains all subviews of rootView for recycling.
     init(rootView: View?) {
         rootView?.walkSubviews { (view) in
             if let viewReuseId = view.viewReuseId {
-                self.viewsById[viewReuseId] = view
+                self.viewsById.insert(view, viewReuseId: viewReuseId)
             } else {
                 self.unidentifiedViews.insert(view)
             }
@@ -36,9 +36,9 @@ class ViewRecycler {
      It may recycle an existing view or create a new view.
      */
     func makeOrRecycleView(havingViewReuseId viewReuseId: String?, viewProvider: () -> View) -> View? {
+
         // If we have a recyclable view that matches type and id, then reuse it.
-        if let viewReuseId = viewReuseId, let view = viewsById[viewReuseId] {
-            viewsById[viewReuseId] = nil
+        if let viewReuseId = viewReuseId, let view = viewsById.pop(viewReuseId: viewReuseId) {
             return view
         }
 
@@ -46,8 +46,8 @@ class ViewRecycler {
         providedView.isLayoutKitView = true
 
         // Remove the provided view from the list of cached views.
-        if let viewReuseId = providedView.viewReuseId, let oldView = viewsById[viewReuseId], oldView == providedView {
-            viewsById[viewReuseId] = nil
+        if let viewReuseId = providedView.viewReuseId {
+            viewsById.remove(providedView, viewReuseId: viewReuseId)
         } else {
             unidentifiedViews.remove(providedView)
         }
@@ -57,7 +57,7 @@ class ViewRecycler {
 
     /// Removes all unrecycled views from the view hierarchy.
     func purgeViews() {
-        for view in viewsById.values {
+        for view in viewsById.allViews() {
             view.removeFromSuperview()
         }
         viewsById.removeAll()

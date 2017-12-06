@@ -231,11 +231,11 @@ open class ReloadableViewLayoutAdapter: NSObject, ReloadableViewUpdateManagerDel
 
      See Playground page CollectionView Animation in LayoutKit.playground for example
      */
-    open func reload<T: Collection, U: Collection>(
+    open func reload<T: Collection, U>(
         items: [IndexPath],
         width: CGFloat? = nil,
         height: CGFloat? = nil,
-        layoutProvider: @escaping (Void) -> T,
+        layoutProvider: @escaping () -> T,
         completion: @escaping ([Animation]) -> Void) where U.Iterator.Element == Layout, T.Iterator.Element == Section<U> {
 
         let start = CFAbsoluteTimeGetCurrent()

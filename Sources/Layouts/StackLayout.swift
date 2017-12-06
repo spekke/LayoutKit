@@ -39,6 +39,7 @@ open class StackLayout<V: View>: BaseLayout<V> {
                 alignment: Alignment = .fill,
                 flexibility: Flexibility? = nil,
                 viewReuseId: String? = nil,
+                viewReuseGroup: String? = nil,
                 sublayouts: [Layout],
                 config: ((V) -> Void)? = nil) {
         
@@ -47,7 +48,7 @@ open class StackLayout<V: View>: BaseLayout<V> {
         self.distribution = distribution
         self.sublayouts = sublayouts
         let flexibility = flexibility ?? StackLayout.defaultFlexibility(axis: axis, sublayouts: sublayouts)
-        super.init(alignment: alignment, flexibility: flexibility, viewReuseId: viewReuseId, config: config)
+        super.init(alignment: alignment, flexibility: flexibility, viewReuseId: viewReuseId, viewReuseGroup: viewReuseGroup, config: config)
     }
 }
 
@@ -263,11 +264,11 @@ extension StackLayout {
      If two sublayouts have the same flexibility, then sublayout with the higher index is considered more flexible.
      Inflexible layouts are sorted before all flexible layouts.
      */
-    private func layoutsFlexibilityAscending(compare :(left: (offset: Int, element: Layout), right: (offset: Int, element: Layout))) -> Bool {
-        let leftFlex = compare.left.element.flexibility.flex(axis)
-        let rightFlex = compare.right.element.flexibility.flex(axis)
+    private func layoutsFlexibilityAscending(left: (offset: Int, element: Layout), right: (offset: Int, element: Layout)) -> Bool {
+        let leftFlex = left.element.flexibility.flex(axis)
+        let rightFlex = right.element.flexibility.flex(axis)
         if leftFlex == rightFlex {
-            return compare.left.offset < compare.right.offset
+            return left.offset < right.offset
         }
         // nil is less than all integers
         return leftFlex ?? .min < rightFlex ?? .min

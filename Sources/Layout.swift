@@ -106,6 +106,14 @@ public protocol Layout {
      */
     var viewReuseId: String? { get }
 
+
+    /**
+     An identifier that specifies the type view content
+
+     Use this identifier enable view reuse between layouts that produce same kind of views.
+    */
+    var viewReuseGroup: String? { get }
+
     var identifier: String { get }
 }
 
@@ -120,7 +128,7 @@ public extension Layout {
      - parameter height: The exact height that the layout should consume.
          If nil, the layout is given exactly the size that it requested during the measure pass.
      */
-    final func arrangement(origin: CGPoint = .zero, width: CGFloat? = nil, height: CGFloat? = nil) -> LayoutArrangement {
+    func arrangement(origin: CGPoint = .zero, width: CGFloat? = nil, height: CGFloat? = nil) -> LayoutArrangement {
 //        let start = CFAbsoluteTimeGetCurrent()
         let maxSize = CGSize(width: width ?? CGFloat.greatestFiniteMagnitude, height: height ?? CGFloat.greatestFiniteMagnitude)
         let measurement = self.measurement(within: maxSize)

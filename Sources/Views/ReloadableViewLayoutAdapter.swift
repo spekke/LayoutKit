@@ -15,6 +15,9 @@ import UIKit
  */
 open class ReloadableViewLayoutAdapter: NSObject, ReloadableViewUpdateManagerDelegate {
 
+    static let incrementalUpdateChunkSize = 16
+    static let incrementalUpdateChunkingThreshold = 4 * incrementalUpdateChunkSize
+
     let reuseIdentifier = String(describing: ReloadableViewLayoutAdapter.self)
 
     /// The current layout arrangement.
@@ -83,12 +86,12 @@ open class ReloadableViewLayoutAdapter: NSObject, ReloadableViewUpdateManagerDel
      - parameter layoutProvider: A closure that produces the layout. It is called on a background thread so it must be threadsafe.
      - parameter completion: A closure that is called on the main thread when the operation is complete.
      */
-    open func reload<T: Collection, U: Collection>(
+    open func reload<T: Collection, U>(
         width: CGFloat? = nil,
         height: CGFloat? = nil,
         synchronous: Bool = false,
         batchUpdates: BatchUpdates? = nil,
-        layoutProvider: @escaping (Void) -> T,
+        layoutProvider: @escaping () -> T,
         completion: (() -> Void)? = nil) where U.Iterator.Element == Layout, T.Iterator.Element == Section<U> {
 
         assert(Thread.isMainThread, "reload must be called on the main thread")
@@ -107,11 +110,11 @@ open class ReloadableViewLayoutAdapter: NSObject, ReloadableViewUpdateManagerDel
         }
     }
 
-    private func reloadSynchronously<T: Collection, U: Collection>(
-        layoutProvider: (Void) -> T,
+    private func reloadSynchronously<T: Collection, U>(
+        layoutProvider: () -> T,
         layoutFunc: @escaping (Layout) -> LayoutArrangement,
         batchUpdates: BatchUpdates?,
-        completion: ((Void) -> Void)?) where U.Iterator.Element == Layout, T.Iterator.Element == Section<U> {
+        completion: (() -> Void)?) where U.Iterator.Element == Layout, T.Iterator.Element == Section<U> {
 
         let start = CFAbsoluteTimeGetCurrent()
         currentArrangement = layoutProvider().map { sectionLayout in
@@ -132,11 +135,11 @@ open class ReloadableViewLayoutAdapter: NSObject, ReloadableViewUpdateManagerDel
         }
     }
 
-    private func reloadAsynchronously<T: Collection, U: Collection>(
-        layoutProvider: @escaping (Void) -> T,
+    private func reloadAsynchronously<T: Collection, U>(
+        layoutProvider: @escaping () -> T,
         layoutFunc: @escaping (Layout) -> LayoutArrangement,
         batchUpdates: BatchUpdates?,
-        completion: ((Void) -> Void)?) where U.Iterator.Element == Layout, T.Iterator.Element == Section<U> {
+        completion: (() -> Void)?) where U.Iterator.Element == Layout, T.Iterator.Element == Section<U> {
 
         let start = CFAbsoluteTimeGetCurrent()
         let operation = BlockOperation()
@@ -149,6 +152,21 @@ open class ReloadableViewLayoutAdapter: NSObject, ReloadableViewUpdateManagerDel
             BatchUpdateManager(delegate: self, operation: operation)
 
         operation.addExecutionBlock { [weak operation] in
+
+            func applyPartialArrangement(
+                header: LayoutArrangement?,
+                items: [LayoutArrangement],
+                footer: LayoutArrangement?,
+                pendingArrangement: [Section<[LayoutArrangement]>],
+                insertedIndexPaths: [IndexPath],
+                updateManager: ReloadableViewUpdateManager) {
+
+                let partialSection = Section(header: header, items: items, footer: footer)
+                var partialArrangement = pendingArrangement
+                partialArrangement.append(partialSection)
+                updateManager.apply(partialArrangement: partialArrangement, insertedIndexPaths: insertedIndexPaths)
+            }
+
             var pendingArrangement = [Section<[LayoutArrangement]>]()
             for (sectionIndex, sectionLayout) in layoutProvider().enumerated() {
                 if operation?.isCancelled ?? true {
@@ -158,6 +176,7 @@ open class ReloadableViewLayoutAdapter: NSObject, ReloadableViewUpdateManagerDel
                 let header = sectionLayout.header.map(layoutFunc)
                 let footer = sectionLayout.footer.map(layoutFunc)
                 var items = [LayoutArrangement]()
+                var insertedIndexPaths = [IndexPath]()
 
                 for (itemIndex, itemLayout) in sectionLayout.items.enumerated() {
                     if operation?.isCancelled ?? true {
@@ -165,12 +184,18 @@ open class ReloadableViewLayoutAdapter: NSObject, ReloadableViewUpdateManagerDel
                     }
 
                     items.append(layoutFunc(itemLayout))
+                    insertedIndexPaths.append(IndexPath(item: itemIndex, section: sectionIndex))
 
-                    let partialSection = Section(header: header, items: items, footer: footer)
-                    var partialArrangement = pendingArrangement
-                    partialArrangement.append(partialSection)
-                    let insertedIndexPath = IndexPath(item: itemIndex, section: sectionIndex)
-                    updateManager.apply(partialArrangement: partialArrangement, insertedIndexPath: insertedIndexPath)
+                    if (itemIndex <= ReloadableViewLayoutAdapter.incrementalUpdateChunkingThreshold
+                        || itemIndex % ReloadableViewLayoutAdapter.incrementalUpdateChunkSize == 0)
+                    {
+                        applyPartialArrangement(header: header, items: items, footer: footer, pendingArrangement: pendingArrangement, insertedIndexPaths: insertedIndexPaths, updateManager: updateManager)
+                        insertedIndexPaths.removeAll()
+                    }
+                }
+                
+                if insertedIndexPaths.isEmpty == false {
+                    applyPartialArrangement(header: header, items: items, footer: footer, pendingArrangement: pendingArrangement, insertedIndexPaths: insertedIndexPaths, updateManager: updateManager)
                 }
 
                 let pendingSection = Section(header: header, items: items, footer: footer)

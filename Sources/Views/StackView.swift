@@ -129,6 +129,7 @@ private struct ViewLayout: ConfigurableLayout {
     let needsView = true
     let view: UIView
     let viewReuseId: String? = nil
+    let viewReuseGroup: String? = nil
     let identifier: String = UUID().uuidString
 
     func measurement(within maxSize: CGSize) -> LayoutMeasurement {
@@ -156,10 +157,10 @@ private struct ViewLayout: ConfigurableLayout {
 
     private func flexForAxis(_ axis: UILayoutConstraintAxis) -> Flexibility.Flex {
         switch view.contentHuggingPriority(for: .horizontal) {
-        case UILayoutPriorityRequired:
+        case UILayoutPriority.required:
             return nil
         case let priority:
-            return -Int32(priority)
+            return -Int32(priority.rawValue)
         }
     }
 }
